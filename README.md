@@ -6,33 +6,26 @@
   <img src="https://img.shields.io/badge/License-GPLv3-blue?style=for-the-badge" alt="GPLv3">
 </p>
 
-Коллекция авторских плагинов для модификации [exteraGram](https://github.com/exteraSquad/exteraGram).  
-Разработка и поддержка: **Руни** ([@RnPlugins](https://t.me/RnPlugins)).
+Коллекция авторских плагинов для [exteraGram](https://github.com/exteraSquad/exteraGram).  
+Канал со всеми плагинами и обновлениями: [@RnPlugins](https://t.me/RnPlugins) (пост со списком плагинов: [t.me/RnPlugins/38](https://t.me/RnPlugins/38)).
 
 ---
 
-## 📦 Каталог плагинов
+## Каталог плагинов
 
-| Плагин | Версия | Описание | Скачать | Исходники |
-| :--- | :--- | :--- | :--- | :--- |
-| **Material Player** | `1.0.0` | Material Expressive плеер с динамическими цветами, волнистым прогрессом, текстами песен и плавающим мини-плеером | [Telegram (@RnPlugins/38)](https://t.me/RnPlugins/38) | [`plugins/md3_player`](plugins/md3_player) |
-
----
-
-## 🛠 Как установить плагины
-
-1. Скачайте файл плагина (`.plugin`) из официального канала [@RnPlugins](https://t.me/RnPlugins) (например, [Material Player](https://t.me/RnPlugins/38)).
-2. Откройте **exteraGram** -> **Настройки** -> **Плагины**.
-3. Нажмите на три точки в правом верхнем углу -> **Установить из файла** и выберите скачанный `.plugin`.
-4. Включите плагин и настройте его параметры под себя!
+| Плагин | Описание | Скачать | Исходники |
+| :--- | :--- | :--- | :--- |
+| **Material Player** | Музыкальный плеер в стиле Material Expressive с динамическими цветами, волнистым сикбаром и текстами песен | [Пост со списком](https://t.me/RnPlugins/38) | [`plugins/md3_player`](plugins/md3_player) |
 
 ---
 
-## 📜 Лицензия
+## Установка
 
-Все исходные коды плагинов в этом репозитории распространяются под свободной лицензией **GNU General Public License v3.0 (GPLv3)**. Подробнее см. в файле [LICENSE](LICENSE).
+1. Скачайте `.plugin` файл из [поста со списком плагинов](https://t.me/RnPlugins/38).
+2. Нажмите на скачанный файл прямо в чате и подтвердите установку в появившемся окне.
 
-## ❤️ Благодарности
+---
 
-- [exteraGram](https://github.com/exteraSquad/exteraGram) — за лучший клиент Telegram и API расширений.
-- [exteraless](https://t.me/exteraless) ([GitHub репозиторий](https://github.com/exteraless/exteraless), [Telegram-канал](https://t.me/exteraless)) — за базу музыкального плеера и вдохновение.
+## Лицензия
+
+Все плагины в репозитории распространяются под лицензией [GPLv3](LICENSE).
