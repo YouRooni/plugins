@@ -44,7 +44,7 @@ import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.CubicBezierInterpolator;
 import org.telegram.ui.Components.LayoutHelper;
 
-public class PlayerMiniView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
+public class PlayerMiniView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate, PlayerTransitionSource {
 
     public static final int HEIGHT_DP = 64;
 
@@ -84,6 +84,7 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
     private int touchSlop;
     private VelocityTracker velocityTracker;
     private ValueAnimator snapAnimator;
+    private boolean transitionHidden;
 
     public PlayerMiniView(Context context, BaseFragment fragment, Theme.ResourcesProvider resourcesProvider) {
         super(context);
@@ -202,7 +203,7 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
     }
 
     public int getCardColor() {
-        return colors.primaryContainer;
+        return currentColorPrimaryContainer != 0 ? currentColorPrimaryContainer : getCardBg(colors);
     }
 
     public Bitmap getCoverBitmap() {
@@ -232,12 +233,25 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
     }
 
     public void setTransitionHidden(boolean hidden) {
+        transitionHidden = hidden;
         card.setAlpha(hidden ? 0f : (showProgress * hostFactor));
+        if (!hidden) {
+            if (cover != null && cover.getVisibility() != VISIBLE) {
+                cover.setVisibility(VISIBLE);
+            }
+            card.setVisibility(VISIBLE);
+            setVisibility(showProgress > 0f ? VISIBLE : GONE);
+            card.invalidate();
+            invalidate();
+        }
     }
 
     public void setCurrentFragment(BaseFragment fragment) {
+        if (this.fragment == fragment) {
+            return;
+        }
         this.fragment = fragment;
-        if (!isDragging && (snapAnimator == null || !snapAnimator.isRunning())) {
+        if (!transitionHidden && !isDragging && (snapAnimator == null || !snapAnimator.isRunning())) {
             boolean isTop = PlayerConfig.isMiniPlayerTop();
             currentCardY = isTop ? calculateTopBound() : calculateBottomBound();
             applyTransform();
@@ -281,7 +295,7 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
     @Override
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         super.onLayout(changed, left, top, right, bottom);
-        if (!isDragging && (snapAnimator == null || !snapAnimator.isRunning())) {
+        if (!transitionHidden && !isDragging && (snapAnimator == null || !snapAnimator.isRunning())) {
             boolean isTop = PlayerConfig.isMiniPlayerTop();
             currentCardY = isTop ? calculateTopBound() : calculateBottomBound();
             applyTransform();
@@ -398,7 +412,7 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
         boolean isTop = PlayerConfig.isMiniPlayerTop();
         float hideOffset = (isTop ? -dp(32) : dp(32)) * (1f - p);
         card.setTranslationY(currentCardY + hideOffset);
-        card.setAlpha(p);
+        card.setAlpha(transitionHidden ? 0f : p);
         setVisibility(p > 0f ? VISIBLE : GONE);
     }
 
@@ -756,11 +770,14 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
     }
 
     private void bind(MessageObject mo) {
+        boolean same = current == mo;
         current = mo;
-        titleView.setText(mo.getMusicTitle());
-        artistView.setText(mo.getMusicAuthor());
-        cover.setMessage(mo);
-        playButton.setMessage(mo);
+        if (!same) {
+            titleView.setText(mo.getMusicTitle());
+            artistView.setText(mo.getMusicAuthor());
+            cover.setMessage(mo);
+            playButton.setMessage(mo);
+        }
         playButton.setContentDescription(getString(MediaController.getInstance().isMessagePaused() ? R.string.AccActionPlay : R.string.AccActionPause));
 
         dark = PlayerColors.isDark(resourcesProvider);
@@ -768,7 +785,9 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
             Integer cached = PlayerArt.cachedSeed(mo);
             if (cached != null) {
                 seed = cached;
-                animateColors(PlayerColors.fromSeed(seed, dark));
+                if (!same) {
+                    animateColors(PlayerColors.fromSeed(seed, dark));
+                }
             }
         } else {
             checkThemeColors();
@@ -777,7 +796,7 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
 
     private void setShown(boolean value, boolean animated) {
         if (shown == value && (showAnimator != null || showProgress == (value ? 1f : 0f))) {
-            if (value && card.getAlpha() < 0.1f) {
+            if (!transitionHidden && value && card.getAlpha() < 0.1f) {
                 applyTransform();
             }
             return;
@@ -817,13 +836,13 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
             colorAnimator.cancel();
             colorAnimator = null;
         }
-        final int startBg = currentColorPrimaryContainer != 0 ? currentColorPrimaryContainer : colors.primaryContainer;
-        final int endBg = target.primaryContainer;
-        final int startFg = currentColorOnPrimaryContainer != 0 ? currentColorOnPrimaryContainer : colors.onPrimaryContainer;
-        final int endFg = target.onPrimaryContainer;
-        final int startSecBg = currentColorSecondaryContainer != 0 ? currentColorSecondaryContainer : colors.secondaryContainer;
+        final int startBg = currentColorPrimaryContainer != 0 ? currentColorPrimaryContainer : getCardBg(colors);
+        final int endBg = getCardBg(target);
+        final int startFg = currentColorOnPrimaryContainer != 0 ? currentColorOnPrimaryContainer : getCardFg(colors);
+        final int endFg = getCardFg(target);
+        final int startSecBg = currentColorSecondaryContainer != 0 ? currentColorSecondaryContainer : target.secondaryContainer;
         final int endSecBg = target.secondaryContainer;
-        final int startSecFg = currentColorOnSecondaryContainer != 0 ? currentColorOnSecondaryContainer : colors.onSecondaryContainer;
+        final int startSecFg = currentColorOnSecondaryContainer != 0 ? currentColorOnSecondaryContainer : target.onSecondaryContainer;
         final int endSecFg = target.onSecondaryContainer;
 
         if (startBg == endBg && startFg == endFg) {
@@ -864,28 +883,55 @@ public class PlayerMiniView extends FrameLayout implements NotificationCenter.No
         colorAnimator.start();
     }
 
+    private int getCardBg(PlayerColors c) {
+        if (c == null) return dark ? 0xff1e1e1e : 0xfff5f5f5;
+        if (dark) {
+            if (ColorUtils.calculateLuminance(c.primaryContainer) > 0.45) {
+                return c.surfaceHigh != 0 ? c.surfaceHigh : (c.surfaceContainer != 0 ? c.surfaceContainer : 0xff1e1e1e);
+            }
+            return c.primaryContainer;
+        } else {
+            if (ColorUtils.calculateLuminance(c.primaryContainer) < 0.4) {
+                return c.surfaceContainer != 0 ? c.surfaceContainer : (c.surface != 0 ? c.surface : 0xfff5f5f5);
+            }
+            return c.primaryContainer;
+        }
+    }
+
+    private int getCardFg(PlayerColors c) {
+        if (c == null) return dark ? 0xffffffff : 0xff000000;
+        int bg = getCardBg(c);
+        if (ColorUtils.calculateLuminance(bg) < 0.5) {
+            return ColorUtils.calculateLuminance(c.onPrimaryContainer) > 0.5 ? c.onPrimaryContainer : (c.onSurface != 0 ? c.onSurface : 0xffffffff);
+        } else {
+            return ColorUtils.calculateLuminance(c.onPrimaryContainer) < 0.5 ? c.onPrimaryContainer : (c.onSurface != 0 ? c.onSurface : 0xff000000);
+        }
+    }
+
     private void applyColors(PlayerColors c) {
         colors = c;
-        currentColorPrimaryContainer = c.primaryContainer;
-        currentColorOnPrimaryContainer = c.onPrimaryContainer;
+        int bg = getCardBg(c);
+        int fg = getCardFg(c);
+        currentColorPrimaryContainer = bg;
+        currentColorOnPrimaryContainer = fg;
         currentColorSecondaryContainer = c.secondaryContainer;
         currentColorOnSecondaryContainer = c.onSecondaryContainer;
 
-        cardBg.setColor(c.primaryContainer);
+        cardBg.setColor(bg);
         if (Build.VERSION.SDK_INT >= 28) {
             card.setOutlineSpotShadowColor(c.shadow());
             card.setOutlineAmbientShadowColor(c.shadow());
         }
         cover.setColors(c.secondaryContainer, c.onSecondaryContainer);
-        titleView.setTextColor(c.onPrimaryContainer);
-        artistView.setTextColor(c.onPrimaryContainer);
-        nextIcon.setColor(c.onPrimaryContainer);
-        closeIcon.setColor(c.onPrimaryContainer);
-        int ripple = ColorUtils.setAlphaComponent(c.onPrimaryContainer, 0x1f);
+        titleView.setTextColor(fg);
+        artistView.setTextColor(fg);
+        nextIcon.setColor(fg);
+        closeIcon.setColor(fg);
+        int ripple = ColorUtils.setAlphaComponent(fg, 0x1f);
         nextButton.setBackground(Theme.createSelectorDrawable(ripple, 1));
         closeButton.setBackground(Theme.createSelectorDrawable(ripple, 1));
         playButton.setBackground(Theme.createSelectorDrawable(ripple, 1));
-        playButton.setColors(c.onPrimaryContainer, ColorUtils.setAlphaComponent(c.onPrimaryContainer, 46), c.onPrimaryContainer);
+        playButton.setColors(fg, ColorUtils.setAlphaComponent(fg, 46), fg);
         card.setForeground(Theme.createSelectorDrawable(ripple, 2));
     }
 }

@@ -231,7 +231,9 @@ public class WavySeekBar extends View {
         if (restX < stopX) {
             canvas.drawLine(restX, cy, stopX, cy, trackPaint);
         }
-        canvas.drawCircle(stopX, cy, dp(2), fillPaint);
+        if (PlayerConfig.isSeekBarDot()) {
+            canvas.drawCircle(stopX, cy, dp(2), fillPaint);
+        }
         rect.set(x - thumbW / 2f, cy - dp(14), x + thumbW / 2f, cy + dp(14));
         canvas.drawRoundRect(rect, dpf2(1.5f), dpf2(1.5f), fillPaint);
 

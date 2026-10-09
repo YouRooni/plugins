@@ -169,7 +169,7 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
     private final Rect morphSrc = new Rect();
     private final Path morphPath = new Path();
     private final Paint morphPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
-    private PlayerMiniView miniSource;
+    private PlayerTransitionSource transitionSource;
     private View morphCoverView;
     private float morphCoverBaseRadius;
     private boolean backPreview;
@@ -180,6 +180,7 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
     private boolean closing;
     private boolean detached;
     private ValueAnimator morphAnimator;
+    private ValueAnimator slideAnimator;
     private float morphProgress = -1f;
     private float morphFromRadius;
     private float morphToRadius;
@@ -215,6 +216,11 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         super(context, false, resourcesProvider);
         Activity found = AndroidUtilities.findActivity(context);
         activity = found instanceof LaunchActivity ? (LaunchActivity) found : LaunchActivity.instance;
+        if (activity != null && activity.getWindow() != null) {
+            int flags = activity.getWindow().getDecorView().getSystemUiVisibility();
+            underLightStatus = (flags & View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR) != 0;
+            underLightNav = (flags & View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR) != 0;
+        }
         touchSlop = ViewConfiguration.get(context).getScaledTouchSlop();
         occupyNavigationBar = true;
         drawNavigationBar = false;
@@ -254,6 +260,10 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
 
             @Override
             public void setTranslationY(float translationY) {
+                if (morphProgress >= 0f || backPreview) {
+                    super.setTranslationY(0);
+                    return;
+                }
                 super.setTranslationY(translationY);
                 invalidate();
             }
@@ -261,6 +271,18 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
             @Override
             protected void dispatchDraw(Canvas canvas) {
                 if (morphProgress < 0f) {
+                    float ty = getTranslationY();
+                    if (ty > 0f) {
+                        float r = dp(28) * Math.min(1f, ty / dp(56));
+                        morphPath.rewind();
+                        backgroundRect.set(0, 0, getWidth(), getHeight() + r);
+                        morphPath.addRoundRect(backgroundRect, r, r, Path.Direction.CW);
+                        canvas.save();
+                        canvas.clipPath(morphPath);
+                        super.dispatchDraw(canvas);
+                        canvas.restore();
+                        return;
+                    }
                     super.dispatchDraw(canvas);
                     return;
                 }
@@ -552,12 +574,19 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         applySystemBars(true);
     }
 
-    public void setTransitionSource(PlayerMiniView source) {
-        miniSource = source;
+    public void setTransitionSource(PlayerTransitionSource source) {
+        if (!PlayerConfig.isSlideAnimation()) {
+            transitionSource = source;
+        }
     }
 
     public void dismissImmediately() {
         skipMorph = true;
+        if (slideAnimator != null) {
+            slideAnimator.removeAllListeners();
+            slideAnimator.cancel();
+            slideAnimator = null;
+        }
         dismiss();
     }
 
@@ -566,7 +595,22 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         if (closing) {
             return;
         }
-        if (!skipMorph && miniSource != null && !isDismissed()) {
+        if (PlayerConfig.isSlideAnimation()) {
+            if (skipMorph) {
+                closing = true;
+                detach();
+                finishSlideClose();
+                return;
+            }
+            startSlideCloseAnimation();
+            return;
+        }
+        if (transitionSource == null) {
+            transitionSource = PlayerHook.findActiveTransitionSource();
+        }
+        if (!skipMorph && transitionSource != null && !isDismissed()) {
+            float ty = root.getTranslationY();
+            root.setTranslationY(0);
             if (morphProgress >= 0f) {
                 boolean preview = backPreview;
                 closing = true;
@@ -579,8 +623,6 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
                 startMorph(morphProgress, 0f, preview ? 380 : 300, this::finishMorphClose);
                 return;
             }
-            float ty = root.getTranslationY();
-            root.setTranslationY(0);
             if (prepareMorph(true)) {
                 closing = true;
                 detach();
@@ -605,20 +647,140 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
             restoreMorphCover();
             clearMorph();
         }
-        if (miniSource != null) {
-            miniSource.setTransitionHidden(false);
+        if (transitionSource != null) {
+            transitionSource.setTransitionHidden(false);
+        }
+        super.dismiss();
+    }
+
+    private void startSlideOpenAnimation() {
+        if (slideAnimator != null) {
+            slideAnimator.removeAllListeners();
+            slideAnimator.cancel();
+            slideAnimator = null;
+        }
+        clearMorph();
+        restoreMorphCover();
+        cover.setTranslationZ(0);
+        cover.setTranslationX(0);
+        cover.setTranslationY(0);
+        cover.setScaleX(1f);
+        cover.setScaleY(1f);
+        cover.setAlpha(1f);
+
+        int fallbackH = AndroidUtilities.displaySize.y > 0 ? AndroidUtilities.displaySize.y : AndroidUtilities.dp(800);
+        root.setTranslationY(fallbackH);
+        root.setVisibility(View.VISIBLE);
+        backDrawable.setAlpha(0);
+
+        root.getViewTreeObserver().addOnPreDrawListener(new android.view.ViewTreeObserver.OnPreDrawListener() {
+            @Override
+            public boolean onPreDraw() {
+                root.getViewTreeObserver().removeOnPreDrawListener(this);
+                if (isDismissed() || closing) {
+                    return true;
+                }
+                int h = root.getHeight() > 0 ? root.getHeight() : AndroidUtilities.displaySize.y;
+                if (h <= 0) {
+                    h = AndroidUtilities.dp(800);
+                }
+                root.setTranslationY(h);
+                final float totalH = (float) h;
+                slideAnimator = ValueAnimator.ofFloat(totalH, 0f);
+                slideAnimator.setDuration(360);
+                slideAnimator.setInterpolator(EMPHASIZED);
+                slideAnimator.addUpdateListener(a -> {
+                    float val = (float) a.getAnimatedValue();
+                    root.setTranslationY(val);
+                    float p = 1f - Math.max(0f, Math.min(1f, val / totalH));
+                    backDrawable.setAlpha(dimBehind ? (int) (dimBehindAlpha * p) : 0);
+                });
+                slideAnimator.addListener(new AnimatorListenerAdapter() {
+                    @Override
+                    public void onAnimationEnd(Animator animation) {
+                        slideAnimator = null;
+                        root.setTranslationY(0);
+                        backDrawable.setAlpha(dimBehind ? dimBehindAlpha : 0);
+                        applySystemBars(true);
+                        onOpenAnimationEnd();
+                        if (delegate != null) {
+                            delegate.onOpenAnimationEnd();
+                        }
+                    }
+                });
+                slideAnimator.start();
+                return false;
+            }
+        });
+    }
+
+    private void startSlideCloseAnimation() {
+        if (closing) {
+            return;
+        }
+        closing = true;
+        detach();
+        cancelBackAnimator();
+        cancelSheetAnimation();
+        if (slideAnimator != null) {
+            slideAnimator.removeAllListeners();
+            slideAnimator.cancel();
+            slideAnimator = null;
+        }
+        float currentY = root.getTranslationY();
+        int h = root.getHeight() > 0 ? root.getHeight() : AndroidUtilities.displaySize.y;
+        if (h <= 0) {
+            h = AndroidUtilities.dp(800);
+        }
+        final float totalH = (float) h;
+        float targetY = totalH;
+
+        float distance = Math.max(0f, targetY - currentY);
+        long duration = Math.max(160, (long) (300 * (distance / totalH)));
+
+        slideAnimator = ValueAnimator.ofFloat(currentY, targetY);
+        slideAnimator.setDuration(duration);
+        slideAnimator.setInterpolator(EMPHASIZED);
+        slideAnimator.addUpdateListener(a -> {
+            float val = (float) a.getAnimatedValue();
+            root.setTranslationY(val);
+            float p = 1f - Math.max(0f, Math.min(1f, val / totalH));
+            backDrawable.setAlpha(dimBehind ? (int) (dimBehindAlpha * p) : 0);
+        });
+        slideAnimator.addListener(new AnimatorListenerAdapter() {
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                slideAnimator = null;
+                finishSlideClose();
+            }
+        });
+        slideAnimator.start();
+    }
+
+    private void finishSlideClose() {
+        if (transitionSource != null) {
+            transitionSource.setTransitionHidden(false);
+        }
+        restoreMorphCover();
+        setBars(underLightStatus, underLightNav);
+        try {
+            Field f = BottomSheet.class.getDeclaredField("skipDismissAnimation");
+            f.setAccessible(true);
+            f.setBoolean(this, true);
+        } catch (Throwable ignored) {
         }
         super.dismiss();
     }
 
     private void finishMorphClose() {
-        if (miniSource != null) {
-            miniSource.setTransitionHidden(false);
-            miniSource.invalidate();
+        if (transitionSource != null) {
+            transitionSource.setTransitionHidden(false);
+            if (transitionSource instanceof View) {
+                ((View) transitionSource).invalidate();
+            }
         }
-        root.setVisibility(View.INVISIBLE);
-        backDrawable.setAlpha(0);
-        clearMorph();
+        restoreMorphCover();
+        setBars(underLightStatus, underLightNav);
         try {
             Field f = BottomSheet.class.getDeclaredField("skipDismissAnimation");
             f.setAccessible(true);
@@ -630,14 +792,20 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
 
     @Override
     public void dismissInternal() {
-        if (miniSource != null) {
-            miniSource.setTransitionHidden(false);
+        if (transitionSource != null) {
+            transitionSource.setTransitionHidden(false);
         }
+        restoreMorphCover();
+        setBars(underLightStatus, underLightNav);
         super.dismissInternal();
     }
 
     @Override
     public boolean onCustomOpenAnimation() {
+        if (PlayerConfig.isSlideAnimation()) {
+            startSlideOpenAnimation();
+            return true;
+        }
         root.setTranslationY(0);
         if (!prepareMorph(true)) {
             return false;
@@ -660,7 +828,13 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
     }
 
     protected boolean onCustomBackStarted(int swipeDirection) {
-        if (miniSource == null || skipMorph) {
+        if (PlayerConfig.isSlideAnimation()) {
+            return false;
+        }
+        if (transitionSource == null) {
+            transitionSource = PlayerHook.findActiveTransitionSource();
+        }
+        if (transitionSource == null || skipMorph) {
             return false;
         }
         if (closing || (morphProgress >= 0f && !backPreview)) {
@@ -707,8 +881,8 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
                 backAnimator = null;
                 backPreview = false;
                 clearMorph();
-                if (miniSource != null) {
-                    miniSource.setTransitionHidden(false);
+                if (transitionSource != null) {
+                    transitionSource.setTransitionHidden(false);
                 }
                 morphBarsState = -1;
                 applySystemBars(true);
@@ -775,7 +949,13 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
     }
 
     private boolean prepareMorph(boolean hideCover) {
-        PlayerMiniView mini = miniSource;
+        if (PlayerConfig.isSlideAnimation()) {
+            return false;
+        }
+        if (transitionSource == null) {
+            transitionSource = PlayerHook.findActiveTransitionSource();
+        }
+        PlayerTransitionSource mini = transitionSource;
         if (skipMorph || mini == null || !mini.canTransition() || root.getWidth() == 0 || !root.isAttachedToWindow()) {
             return false;
         }
@@ -793,6 +973,11 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         morphFromRadius = mini.getCardRadius();
         morphCoverFromRadius = mini.getCoverRadius();
         morphFromColor = mini.getCardColor();
+        if (dark && ColorUtils.calculateLuminance(morphFromColor) > 0.45) {
+            morphFromColor = colors.surfaceHigh != 0 ? colors.surfaceHigh : (colors.surfaceContainer != 0 ? colors.surfaceContainer : 0xff1e1e1e);
+        } else if (!dark && ColorUtils.calculateLuminance(morphFromColor) < 0.35) {
+            morphFromColor = colors.surfaceContainer != 0 ? colors.surfaceContainer : (colors.surface != 0 ? colors.surface : 0xfff5f5f5);
+        }
         recycleSnapshot();
         morphSnapshot = mini.captureCard();
         Bitmap bitmap = coverView instanceof CoverImage ? ((CoverImage) coverView).getImageReceiver().getBitmap() : null;
@@ -895,7 +1080,17 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         morphPath.addRoundRect(morphRect, r, r, Path.Direction.CW);
         canvas.save();
         canvas.clipPath(morphPath);
-        backgroundPaint.setColor(ColorUtils.blendARGB(morphFromColor, colors.surface, clamp01(p / 0.5f)));
+        int startColor = morphFromColor;
+        int endColor = colors.surface;
+        if (dark) {
+            if (ColorUtils.calculateLuminance(startColor) > 0.45) {
+                startColor = colors.surfaceHigh != 0 ? colors.surfaceHigh : (colors.surfaceContainer != 0 ? colors.surfaceContainer : 0xff1e1e1e);
+            }
+            if (ColorUtils.calculateLuminance(endColor) > 0.45) {
+                endColor = colors.surfaceHigh != 0 ? colors.surfaceHigh : (colors.surfaceContainer != 0 ? colors.surfaceContainer : 0xff1e1e1e);
+            }
+        }
+        backgroundPaint.setColor(ColorUtils.blendARGB(startColor, endColor, clamp01(p / 0.5f)));
         canvas.drawRect(morphRect, backgroundPaint);
     }
 
@@ -941,7 +1136,11 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
             morphPaint.setAlpha(255);
             canvas.drawBitmap(bitmap, morphSrc, morphCover, morphPaint);
         } else {
-            backgroundPaint.setColor(colors.primaryContainer);
+            int coverBg = colors.secondaryContainer;
+            if (dark && ColorUtils.calculateLuminance(coverBg) > 0.45) {
+                coverBg = colors.surfaceHigh != 0 ? colors.surfaceHigh : 0xff2b2b2b;
+            }
+            backgroundPaint.setColor(coverBg);
             canvas.drawRect(morphCover, backgroundPaint);
         }
         canvas.restore();
@@ -1061,7 +1260,7 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         updateHeader();
         updateLike(animated);
         updateModes(animated);
-        updateSpeed();
+        updateSpeed(animated);
         updatePlayState(animated);
         updateProgress();
     }
@@ -1149,11 +1348,22 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
     }
 
     private void updateSpeed() {
+        updateSpeed(true);
+    }
+
+    private void updateSpeed(boolean animated) {
         float speed = MediaController.getInstance().getPlaybackSpeed(true);
         DecimalFormat format = new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(currentLocale()));
         String label = format.format(speed) + "×";
         speedButton.setText(label);
         speedButton.setContentDescription(PlayerStrings.get("speed") + " " + label);
+        boolean active = Math.abs(speed - 1f) > 0.01f;
+        speedButton.setActive(active, animated);
+        if (active) {
+            speedButton.setRadius(dp(26), animated);
+        } else {
+            speedButton.setRadius(dp(26), dp(8), animated);
+        }
     }
 
     private static Locale currentLocale() {
@@ -1668,7 +1878,7 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         controls.prev.setColors(c.primaryContainer, c.onPrimaryContainer, c.primaryContainer, c.onPrimaryContainer);
         controls.next.setColors(c.primaryContainer, c.onPrimaryContainer, c.primaryContainer, c.onPrimaryContainer);
         controls.play.setColors(c.primary, c.onPrimary, c.primary, c.onPrimary);
-        speedButton.setColors(c.surfaceHigh, c.onSurface, c.surfaceHigh, c.onSurface);
+        speedButton.setColors(c.surfaceHigh, c.onSurface, c.primary, c.onPrimary);
         lyricsButton.setColors(c.surfaceHigh, c.onSurface, c.primary, c.onPrimary);
         queueButton.setColors(c.surfaceHigh, c.onSurface, c.surfaceHigh, c.onSurface);
         applySystemBars(false);

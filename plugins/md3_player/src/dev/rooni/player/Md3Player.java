@@ -43,7 +43,7 @@ public final class Md3Player {
         return new AudioPlayerAlert(context, resourcesProvider);
     }
 
-    public static void open(BaseFragment fragment, PlayerMiniView source) {
+    public static void open(BaseFragment fragment, PlayerTransitionSource source) {
         if (fragment == null) {
             try {
                 org.telegram.ui.LaunchActivity activity = org.telegram.ui.LaunchActivity.instance;
@@ -61,7 +61,7 @@ public final class Md3Player {
             return;
         }
         BottomSheet sheet = create(fragment.getParentActivity(), fragment.getResourceProvider());
-        if (sheet instanceof PlayerSheet && source != null && source.canTransition()) {
+        if (sheet instanceof PlayerSheet && !PlayerConfig.isSlideAnimation() && source != null && source.canTransition()) {
             ((PlayerSheet) sheet).setTransitionSource(source);
         }
         fragment.showDialog(sheet);

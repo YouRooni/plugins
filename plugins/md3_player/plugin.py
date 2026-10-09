@@ -2,9 +2,9 @@ __id__ = "md3_player"
 __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
-__version__ = "1.0.0-beta.1"
-__build__ = 39
-__icon__ = "RnDev/18"
+__version__ = "1.0.0-beta.16"
+__build__ = 54
+__icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"
 
@@ -17,6 +17,7 @@ from org.telegram.messenger import ApplicationLoader
 from android_utils import run_on_ui_thread
 from ui.settings import Header, Selector, Switch, Text
 
+# сурсы - https://github.com/YouRooni/plugins/tree/master/plugins/md3_player
 DEX_B64 = """__DEX_B64__"""
 
 class Md3PlayerPlugin(BasePlugin):
@@ -68,16 +69,16 @@ class Md3PlayerPlugin(BasePlugin):
     def on_author_click(self, _=None):
         self.show_author_sheet()
 
-    def on_gratitude_click(self, _=None):
+    def on_source_click(self, _=None):
         try:
             from org.telegram.messenger.browser import Browser
             from org.telegram.ui import LaunchActivity
             ctx = LaunchActivity.instance
             if ctx is None:
                 ctx = ApplicationLoader.applicationContext
-            Browser.openUrl(ctx, "https://t.me/exteraless")
+            Browser.openUrl(ctx, "https://github.com/YouRooni/plugins/tree/master/plugins/md3_player")
         except Exception as e:
-            self.log(f"[MD3Player] Error opening gratitude link: {e}")
+            self.log(f"[MD3Player] Error opening source link: {e}")
 
     def on_plugin_unload(self):
         try:
@@ -98,22 +99,73 @@ class Md3PlayerPlugin(BasePlugin):
             color_source = "cover" if color_idx == 0 else "theme"
             online_lyrics = True
             wavy_seekbar = bool(self.get_setting("wavy_seekbar", True))
+            seekbar_dot = bool(self.get_setting("seekbar_dot", True))
+
+            raw_anim = self.get_setting("anim_style", 0)
+            if isinstance(raw_anim, int):
+                anim_style = raw_anim
+            elif isinstance(raw_anim, str):
+                if raw_anim.isdigit():
+                    anim_style = int(raw_anim)
+                elif "скольж" in raw_anim.lower() or "slide" in raw_anim.lower():
+                    anim_style = 1
+                else:
+                    anim_style = 0
+            else:
+                try:
+                    anim_style = int(raw_anim)
+                except Exception:
+                    anim_style = 0
+
+            self.log(f"[MD3Player] Applying settings: anim_style={anim_style}, seekbar_dot={seekbar_dot}, wavy={wavy_seekbar}, color={color_source}")
+            try:
+                ctx = ApplicationLoader.applicationContext
+                if ctx is not None:
+                    prefs = ctx.getSharedPreferences("md3_player_prefs", 0)
+                    prefs.edit() \
+                        .putBoolean("mini_player_dialogs", mini_dialogs) \
+                        .putBoolean("context_bar_enabled", context_bar) \
+                        .putString("color_source", color_source) \
+                        .putBoolean("online_lyrics", online_lyrics) \
+                        .putBoolean("wavy_seekbar", wavy_seekbar) \
+                        .putBoolean("seekbar_dot", seekbar_dot) \
+                        .putInt("anim_style", anim_style) \
+                        .apply()
+            except Exception as e:
+                pass
 
             if self.dex_class is not None:
                 for method in self.dex_class.getMethods():
-                    if method.getName() == "updateSettings":
-                        param_count = len(method.getParameterTypes())
-                        if param_count == 5:
-                            method.invoke(None, mini_dialogs, context_bar, color_source, online_lyrics, wavy_seekbar)
-                            break
-                        elif param_count == 6:
-                            method.invoke(None, mini_dialogs, context_bar, color_source, online_lyrics, wavy_seekbar, False)
-                            break
+                    name = method.getName()
+                    p_len = len(method.getParameterTypes())
+                    if p_len == 1:
+                        try:
+                            if name == "setAnimStyle":
+                                method.invoke(None, anim_style)
+                            elif name == "setSeekBarDot":
+                                method.invoke(None, seekbar_dot)
+                            elif name == "setWavySeekBar":
+                                method.invoke(None, wavy_seekbar)
+                            elif name == "setColorSource":
+                                method.invoke(None, color_source)
+                            elif name == "setMiniPlayerDialogs":
+                                method.invoke(None, mini_dialogs)
+                            elif name == "setContextBar":
+                                method.invoke(None, context_bar)
+                        except Exception as ex:
+                            self.log(f"[MD3Player] Error invoking {name}: {ex}")
+                    elif name == "updateSettings" and p_len == 7:
+                        try:
+                            method.invoke(None, mini_dialogs, context_bar, color_source, online_lyrics, wavy_seekbar, False, anim_style)
+                        except Exception:
+                            pass
         except Exception as e:
             self.log(f"[MD3Player] Apply settings error: {e}\n{traceback.format_exc()}")
 
     def on_setting_change(self, *args):
         self.apply_settings()
+        run_on_ui_thread(self.apply_settings, delay=50)
+        run_on_ui_thread(self.apply_settings, delay=150)
 
     def create_settings(self):
         return [
@@ -154,6 +206,25 @@ class Md3PlayerPlugin(BasePlugin):
                 icon="msg_autodelete_badge2",
                 on_change=self.on_setting_change,
             ),
+            Switch(
+                key="seekbar_dot",
+                text="Точка на конце",
+                subtext="Круглый маркер на шкале трека",
+                default=True,
+                icon="msg_blur_radial",
+                on_change=self.on_setting_change,
+            ),
+            Selector(
+                key="anim_style",
+                text="Анимация",
+                default=0,
+                items=[
+                    "Морфинг",
+                    "Скольжение",
+                ],
+                icon="msg_customize",
+                on_change=self.on_setting_change,
+            ),
             Header(text="О плагине"),
             Text(
                 text="Автор",
@@ -162,9 +233,9 @@ class Md3PlayerPlugin(BasePlugin):
                 on_click=self.on_author_click,
             ),
             Text(
-                text="Благодарность",
-                subtext="Большое спасибо exteraless",
+                text="Исходный код",
+                subtext="Репозиторий на GitHub",
                 icon="msg_link",
-                on_click=self.on_gratitude_click,
+                on_click=self.on_source_click,
             ),
         ]

@@ -69,6 +69,19 @@ public final class PlayerHook {
         }
     }
 
+    public static PlayerTransitionSource findActiveTransitionSource() {
+        for (int i = attachedViews.size() - 1; i >= 0; i--) {
+            View v = attachedViews.get(i).get();
+            if (v instanceof PlayerTransitionSource) {
+                PlayerTransitionSource src = (PlayerTransitionSource) v;
+                if (src.canTransition()) {
+                    return src;
+                }
+            }
+        }
+        return null;
+    }
+
     private PlayerHook() {
     }
 
@@ -126,8 +139,8 @@ public final class PlayerHook {
         });
     }
 
-    public static void updateSettings(boolean miniDialogs, boolean contextBar, String colorSource, boolean onlineLyrics, boolean wavySeekBar, boolean miniEverywhere) {
-        PlayerConfig.update(miniDialogs, contextBar, colorSource, onlineLyrics, wavySeekBar, miniEverywhere);
+    public static void updateSettings(boolean miniDialogs, boolean contextBar, String colorSource, boolean onlineLyrics, boolean wavySeekBar, boolean miniEverywhere, int animStyle) {
+        PlayerConfig.update(miniDialogs, contextBar, colorSource, onlineLyrics, wavySeekBar, miniEverywhere, animStyle);
         AndroidUtilities.runOnUIThread(() -> {
             for (WeakReference<View> ref : attachedViews) {
                 View v = ref.get();
@@ -147,8 +160,85 @@ public final class PlayerHook {
         });
     }
 
-    public static void updateSettings(boolean miniDialogs, boolean contextBar, String colorSource, boolean onlineLyrics, boolean wavySeekBar) {
-        updateSettings(miniDialogs, contextBar, colorSource, onlineLyrics, wavySeekBar, PlayerConfig.isMiniPlayerEverywhere());
+    public static void setAnimStyle(int style) {
+        PlayerConfig.setAnimStyle(style);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (PlayerSheet.instance != null) {
+                try {
+                    PlayerSheet.instance.onConfigChanged();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    public static void setSeekBarDot(boolean dot) {
+        PlayerConfig.setSeekBarDot(dot);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (PlayerSheet.instance != null) {
+                try {
+                    PlayerSheet.instance.onConfigChanged();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    public static void setWavySeekBar(boolean wavy) {
+        PlayerConfig.setWavySeekBar(wavy);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (PlayerSheet.instance != null) {
+                try {
+                    PlayerSheet.instance.onConfigChanged();
+                } catch (Throwable ignored) {
+                }
+            }
+        });
+    }
+
+    public static void setColorSource(String source) {
+        PlayerConfig.setColorSource(source);
+        AndroidUtilities.runOnUIThread(() -> {
+            if (PlayerSheet.instance != null) {
+                try {
+                    PlayerSheet.instance.onConfigChanged();
+                } catch (Throwable ignored) {
+                }
+            }
+            for (WeakReference<View> ref : attachedViews) {
+                View v = ref.get();
+                if (v instanceof PlayerMiniView) {
+                    ((PlayerMiniView) v).update(true);
+                } else if (v instanceof PlayerBarView) {
+                    ((PlayerBarView) v).update();
+                }
+            }
+        });
+    }
+
+    public static void setMiniPlayerDialogs(boolean enabled) {
+        PlayerConfig.setMiniPlayerDialogs(enabled);
+        AndroidUtilities.runOnUIThread(() -> {
+            for (WeakReference<View> ref : attachedViews) {
+                View v = ref.get();
+                if (v instanceof PlayerMiniView) {
+                    ((PlayerMiniView) v).update(true);
+                }
+            }
+            ensureMiniPlayerAttached();
+        });
+    }
+
+    public static void setContextBar(boolean enabled) {
+        PlayerConfig.setContextBarEnabled(enabled);
+        AndroidUtilities.runOnUIThread(() -> {
+            for (WeakReference<View> ref : attachedViews) {
+                View v = ref.get();
+                if (v instanceof PlayerBarView) {
+                    ((PlayerBarView) v).update();
+                }
+            }
+        });
     }
 
     private static void attachMiniPlayerTo(ViewGroup group, BaseFragment fragment) {
@@ -159,12 +249,16 @@ public final class PlayerHook {
             mini.setTag("md3_mini_player");
             group.addView(mini, LayoutHelper.createFrame(-1, -1));
             attachedViews.add(new WeakReference<>(mini));
+            mini.setFloatingAllowed(true);
+            mini.update(false);
         } else {
             mini.setCurrentFragment(fragment);
+            int count = group.getChildCount();
+            if (count > 0 && group.getChildAt(count - 1) != mini) {
+                mini.bringToFront();
+            }
+            mini.setFloatingAllowed(true);
         }
-        mini.bringToFront();
-        mini.setFloatingAllowed(true);
-        mini.update(false);
     }
 
     private static BaseFragment getFragment(FragmentContextView fcv) {
@@ -255,6 +349,10 @@ public final class PlayerHook {
                     if (fragment == null || !isMainDialogs(fragment)) {
                         continue;
                     }
+                    Bundle args = fragment.getArguments();
+                    if (args != null && args.getBoolean("hasMainTabs", false) && fragment.getClass().getSimpleName().contains("DialogsActivity")) {
+                        continue;
+                    }
                     View root = fragment.getFragmentView();
                     if (root instanceof ViewGroup) {
                         attachMiniPlayerTo((ViewGroup) root, fragment);
@@ -280,7 +378,7 @@ public final class PlayerHook {
                         if (mo != null && mo.isMusic()) {
                             param.setResult(null);
                             BaseFragment fragment = (BaseFragment) param.thisObject;
-                            Md3Player.open(fragment, null);
+                            Md3Player.open(fragment, findActiveTransitionSource());
                         }
                     }
                 }
@@ -303,7 +401,11 @@ public final class PlayerHook {
                         if (PlayerSheet.instance == null || !PlayerSheet.instance.isShowing()) {
                             Context ctx = ((Dialog) param.thisObject).getContext();
                             if (ctx != null) {
-                                new PlayerSheet(ctx, null).show();
+                                PlayerSheet sheet = new PlayerSheet(ctx, null);
+                                if (!PlayerConfig.isSlideAnimation()) {
+                                    sheet.setTransitionSource(findActiveTransitionSource());
+                                }
+                                sheet.show();
                             }
                         }
                     }
@@ -359,7 +461,11 @@ public final class PlayerHook {
                             } catch (Throwable ignored) {
                             }
 
-                            bar = new PlayerBarView(fcv.getContext(), rp, fcv::performClick, () -> {
+                            bar = new PlayerBarView(fcv.getContext(), rp, () -> {
+                                BaseFragment f = getFragment(fcv);
+                                PlayerBarView b = (PlayerBarView) fcv.findViewWithTag("md3_player_bar");
+                                Md3Player.open(f, b != null ? b : findActiveTransitionSource());
+                            }, () -> {
                                 try {
                                     Field closeField = FragmentContextView.class.getDeclaredField("closeButton");
                                     closeField.setAccessible(true);

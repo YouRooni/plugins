@@ -12,6 +12,9 @@ public final class PlayerConfig {
     public static final String COLOR_COVER = "cover";
     public static final String COLOR_THEME = "theme";
 
+    public static final int ANIM_MORPH = 0;
+    public static final int ANIM_SLIDE = 1;
+
     private static boolean miniPlayerDialogs = true;
     private static boolean miniPlayerTop = false;
     private static boolean miniPlayerEverywhere = false;
@@ -20,6 +23,8 @@ public final class PlayerConfig {
     private static boolean onlineLyrics = true;
     private static boolean wavySeekBar = true;
     private static boolean lrclibAllowed = true;
+    private static int animStyle = ANIM_MORPH;
+    private static boolean seekBarDot = true;
 
     private static boolean loaded = false;
 
@@ -40,6 +45,8 @@ public final class PlayerConfig {
                 onlineLyrics = prefs.getBoolean("online_lyrics", true);
                 wavySeekBar = prefs.getBoolean("wavy_seekbar", true);
                 lrclibAllowed = prefs.getBoolean("lrclib_allowed", true);
+                animStyle = prefs.getInt("anim_style", ANIM_MORPH);
+                seekBarDot = prefs.getBoolean("seekbar_dot", true);
                 loaded = true;
             }
         } catch (Throwable ignored) {
@@ -60,24 +67,56 @@ public final class PlayerConfig {
                         .putBoolean("online_lyrics", onlineLyrics)
                         .putBoolean("wavy_seekbar", wavySeekBar)
                         .putBoolean("lrclib_allowed", lrclibAllowed)
+                        .putInt("anim_style", animStyle)
+                        .putBoolean("seekbar_dot", seekBarDot)
                         .apply();
             }
         } catch (Throwable ignored) {
         }
     }
 
-    public static void update(boolean miniDialogs, boolean contextBar, String colSource, boolean lyrics, boolean wavy, boolean miniEverywhere) {
+    public static void update(boolean miniDialogs, boolean contextBar, String colSource, boolean lyrics, boolean wavy, boolean miniEverywhere, int anim) {
+        loaded = true;
         miniPlayerDialogs = miniDialogs;
         contextBarEnabled = contextBar;
         colorSource = colSource != null ? colSource : COLOR_COVER;
         onlineLyrics = lyrics;
         wavySeekBar = wavy;
         miniPlayerEverywhere = miniEverywhere;
+        animStyle = anim;
         save();
     }
 
-    public static void update(boolean miniDialogs, boolean contextBar, String colSource, boolean lyrics, boolean wavy) {
-        update(miniDialogs, contextBar, colSource, lyrics, wavy, miniPlayerEverywhere);
+    public static void setAnimStyle(int style) {
+        loaded = true;
+        animStyle = style;
+        save();
+        try {
+            android.util.Log.e("MD3Player", "PlayerConfig.setAnimStyle -> " + style);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public static boolean isSlideAnimation() {
+        load();
+        try {
+            Context ctx = ApplicationLoader.applicationContext;
+            if (ctx != null) {
+                SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                animStyle = prefs.getInt("anim_style", animStyle);
+            }
+        } catch (Throwable ignored) {
+        }
+        try {
+            android.util.Log.e("MD3Player", "isSlideAnimation checked -> " + (animStyle == ANIM_SLIDE) + " (animStyle=" + animStyle + ")");
+        } catch (Throwable ignored) {
+        }
+        return animStyle == ANIM_SLIDE;
+    }
+
+    public static int getAnimStyle() {
+        load();
+        return animStyle;
     }
 
     public static boolean isMiniPlayerDialogs() {
@@ -105,14 +144,32 @@ public final class PlayerConfig {
         save();
     }
 
+    public static void setMiniPlayerDialogs(boolean dialogs) {
+        loaded = true;
+        miniPlayerDialogs = dialogs;
+        save();
+    }
+
     public static boolean isContextBarEnabled() {
         load();
         return contextBarEnabled;
     }
 
+    public static void setContextBarEnabled(boolean enabled) {
+        loaded = true;
+        contextBarEnabled = enabled;
+        save();
+    }
+
     public static String getColorSource() {
         load();
         return colorSource;
+    }
+
+    public static void setColorSource(String source) {
+        loaded = true;
+        colorSource = source != null ? source : COLOR_COVER;
+        save();
     }
 
     public static boolean isColorFromCover() {
@@ -130,6 +187,12 @@ public final class PlayerConfig {
         return wavySeekBar;
     }
 
+    public static void setWavySeekBar(boolean wavy) {
+        loaded = true;
+        wavySeekBar = wavy;
+        save();
+    }
+
     public static boolean isLrclibAllowed() {
         load();
         return lrclibAllowed;
@@ -137,6 +200,25 @@ public final class PlayerConfig {
 
     public static void setLrclibAllowed(boolean allowed) {
         lrclibAllowed = allowed;
+        save();
+    }
+
+    public static boolean isSeekBarDot() {
+        load();
+        try {
+            Context ctx = ApplicationLoader.applicationContext;
+            if (ctx != null) {
+                SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                seekBarDot = prefs.getBoolean("seekbar_dot", seekBarDot);
+            }
+        } catch (Throwable ignored) {
+        }
+        return seekBarDot;
+    }
+
+    public static void setSeekBarDot(boolean dot) {
+        loaded = true;
+        seekBarDot = dot;
         save();
     }
 }

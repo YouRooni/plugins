@@ -4,6 +4,9 @@ import static org.telegram.messenger.AndroidUtilities.dp;
 import static org.telegram.messenger.LocaleController.getString;
 
 import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
+import android.graphics.RectF;
 import android.os.Build;
 import android.text.TextUtils;
 import android.util.TypedValue;
@@ -25,10 +28,11 @@ import org.telegram.messenger.UserConfig;
 import org.telegram.ui.ActionBar.Theme;
 import org.telegram.ui.Components.LayoutHelper;
 
-public class PlayerBarView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate {
+public class PlayerBarView extends FrameLayout implements NotificationCenter.NotificationCenterDelegate, PlayerTransitionSource {
 
     public static final int HEIGHT_DP = 52;
 
+    private final Theme.ResourcesProvider resourcesProvider;
     private final CoverImage cover;
     private final TextView titleView;
     private final TextView artistView;
@@ -41,6 +45,7 @@ public class PlayerBarView extends FrameLayout implements NotificationCenter.Not
 
     public PlayerBarView(Context context, Theme.ResourcesProvider resourcesProvider, Runnable onOpen, Runnable onClose) {
         super(context);
+        this.resourcesProvider = resourcesProvider;
         PlayerColors theme = PlayerColors.fromSeed(PlayerColors.themeSeed(resourcesProvider), PlayerColors.isDark(resourcesProvider));
 
         int bgColor = Theme.getColor(Theme.key_inappPlayerBackground, resourcesProvider);
@@ -178,5 +183,71 @@ public class PlayerBarView extends FrameLayout implements NotificationCenter.Not
         boolean paused = MediaController.getInstance().isMessagePaused();
         playButton.setPlaying(!paused, isAttachedToWindow());
         playButton.setContentDescription(getString(paused ? R.string.AccActionPlay : R.string.AccActionPause));
+    }
+
+    @Override
+    public boolean canTransition() {
+        return isAttachedToWindow() && getVisibility() == VISIBLE && getWidth() > 0 && cover != null && cover.getWidth() > 0;
+    }
+
+    @Override
+    public void getCardRect(RectF out) {
+        int[] loc = new int[2];
+        getLocationOnScreen(loc);
+        out.set(loc[0], loc[1], loc[0] + getWidth(), loc[1] + getHeight());
+    }
+
+    @Override
+    public void getCoverRect(RectF out) {
+        int[] loc = new int[2];
+        cover.getLocationOnScreen(loc);
+        out.set(loc[0], loc[1], loc[0] + cover.getWidth(), loc[1] + cover.getHeight());
+    }
+
+    @Override
+    public float getCardRadius() {
+        return 0f;
+    }
+
+    @Override
+    public float getCoverRadius() {
+        return dp(10);
+    }
+
+    @Override
+    public int getCardColor() {
+        int bgColor = Theme.getColor(Theme.key_inappPlayerBackground, resourcesProvider);
+        return bgColor != 0 ? bgColor : 0xff202020;
+    }
+
+    @Override
+    public Bitmap getCoverBitmap() {
+        return cover.getImageReceiver().getBitmap();
+    }
+
+    @Override
+    public Bitmap captureCard() {
+        int w = getWidth();
+        int h = getHeight();
+        if (w <= 0 || h <= 0) {
+            return null;
+        }
+        int visibility = cover.getVisibility();
+        try {
+            Bitmap bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            Canvas canvas = new Canvas(bitmap);
+            cover.setVisibility(INVISIBLE);
+            draw(canvas);
+            return bitmap;
+        } catch (Throwable e) {
+            return null;
+        } finally {
+            cover.setVisibility(visibility);
+        }
+    }
+
+    @Override
+    public void setTransitionHidden(boolean hidden) {
+        setAlpha(hidden ? 0f : 1f);
     }
 }

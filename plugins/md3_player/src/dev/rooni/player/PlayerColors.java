@@ -145,23 +145,81 @@ public final class PlayerColors {
     }
 
     public static boolean isDark(Theme.ResourcesProvider resourcesProvider) {
-        return ColorUtils.calculateLuminance(Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider)) < 0.5;
+        if (resourcesProvider != null) {
+            try {
+                return resourcesProvider.isDark();
+            } catch (Throwable ignored) {
+            }
+        }
+        try {
+            return Theme.isCurrentThemeDark();
+        } catch (Throwable ignored) {
+        }
+        try {
+            int bg = Theme.getColor(Theme.key_windowBackgroundGray, resourcesProvider);
+            if (Color.alpha(bg) == 0) {
+                bg = Theme.getColor(Theme.key_dialogBackground, resourcesProvider);
+            }
+            if (Color.alpha(bg) == 0) {
+                bg = Theme.getColor(Theme.key_windowBackgroundWhite, resourcesProvider);
+            }
+            return ColorUtils.calculateLuminance(bg) < 0.5;
+        } catch (Throwable ignored) {
+        }
+        return false;
     }
 
     public static int themeSeed(Theme.ResourcesProvider resourcesProvider) {
-        int color = Theme.getColor(Theme.key_windowBackgroundWhiteBlueHeader, resourcesProvider);
-        if (Color.alpha(color) == 0) {
-            color = Theme.getColor(Theme.key_chats_actionBackground, resourcesProvider);
+        boolean dark = isDark(resourcesProvider);
+
+        if (Build.VERSION.SDK_INT >= 31 && ApplicationLoader.applicationContext != null) {
+            try {
+                if (Theme.isCurrentThemeMonet()) {
+                    int id = ApplicationLoader.applicationContext.getResources().getIdentifier(dark ? "system_accent1_200" : "system_accent1_600", "color", "android");
+                    if (id != 0) {
+                        int c = ApplicationLoader.applicationContext.getColor(id);
+                        if (Color.alpha(c) != 0) {
+                            return c | 0xff000000;
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
         }
-        if (Color.alpha(color) == 0) {
-            color = Theme.getColor(Theme.key_actionBarDefault, resourcesProvider);
+
+        try {
+            Theme.ThemeInfo curTheme = Theme.getCurrentTheme();
+            if (curTheme != null) {
+                Theme.ThemeAccent accent = curTheme.getAccent(false);
+                if (accent != null && accent.accentColor != 0) {
+                    float lum = (float) ColorUtils.calculateLuminance(accent.accentColor);
+                    if ((!dark || lum <= 0.8f) && (dark || lum >= 0.15f)) {
+                        return accent.accentColor | 0xff000000;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
         }
-        if (Color.alpha(color) == 0) {
-            color = isDark(resourcesProvider) ? 0xff2b2b2b : 0xffe0e0e0;
-        } else {
-            color |= 0xff000000;
+
+        int[] candidateKeys = new int[]{
+                Theme.key_windowBackgroundWhiteBlueText,
+                Theme.key_featuredStickers_addButton,
+                Theme.key_inappPlayerPlayPause,
+                Theme.key_chat_outBubble,
+                Theme.key_chats_actionBackground
+        };
+
+        for (int key : candidateKeys) {
+            int c = Theme.getColor(key, resourcesProvider);
+            if (Color.alpha(c) != 0) {
+                float lum = (float) ColorUtils.calculateLuminance(c);
+                if ((!dark || lum <= 0.8f) && (dark || lum >= 0.15f)) {
+                    return c | 0xff000000;
+                }
+            }
         }
-        return color;
+
+        return dark ? 0xff2b2b2b : 0xffe0e0e0;
     }
 
     public static int noCoverSeed(Theme.ResourcesProvider resourcesProvider) {
