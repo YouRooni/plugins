@@ -31,6 +31,24 @@ public final class PlayerConfig {
     private PlayerConfig() {
     }
 
+    private static int readAnimStyle(SharedPreferences prefs, int fallback) {
+        try {
+            return prefs.getInt("anim_style", fallback);
+        } catch (Throwable e) {
+            try {
+                String s = prefs.getString("anim_style", null);
+                if (s != null) {
+                    if ("1".equals(s) || s.toLowerCase().contains("скольж") || s.toLowerCase().contains("slide")) {
+                        return ANIM_SLIDE;
+                    }
+                    return ANIM_MORPH;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return fallback;
+    }
+
     public static void load() {
         if (loaded) return;
         try {
@@ -45,7 +63,7 @@ public final class PlayerConfig {
                 onlineLyrics = prefs.getBoolean("online_lyrics", true);
                 wavySeekBar = prefs.getBoolean("wavy_seekbar", true);
                 lrclibAllowed = prefs.getBoolean("lrclib_allowed", true);
-                animStyle = prefs.getInt("anim_style", ANIM_MORPH);
+                animStyle = readAnimStyle(prefs, ANIM_MORPH);
                 seekBarDot = prefs.getBoolean("seekbar_dot", true);
                 loaded = true;
             }
@@ -59,6 +77,7 @@ public final class PlayerConfig {
             if (ctx != null) {
                 SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
                 prefs.edit()
+                        .remove("anim_style")
                         .putBoolean("mini_player_dialogs", miniPlayerDialogs)
                         .putBoolean("mini_player_top", miniPlayerTop)
                         .putBoolean("mini_player_everywhere", miniPlayerEverywhere)
@@ -91,10 +110,6 @@ public final class PlayerConfig {
         loaded = true;
         animStyle = style;
         save();
-        try {
-            android.util.Log.e("MD3Player", "PlayerConfig.setAnimStyle -> " + style);
-        } catch (Throwable ignored) {
-        }
     }
 
     public static boolean isSlideAnimation() {
@@ -103,12 +118,8 @@ public final class PlayerConfig {
             Context ctx = ApplicationLoader.applicationContext;
             if (ctx != null) {
                 SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                animStyle = prefs.getInt("anim_style", animStyle);
+                animStyle = readAnimStyle(prefs, animStyle);
             }
-        } catch (Throwable ignored) {
-        }
-        try {
-            android.util.Log.e("MD3Player", "isSlideAnimation checked -> " + (animStyle == ANIM_SLIDE) + " (animStyle=" + animStyle + ")");
         } catch (Throwable ignored) {
         }
         return animStyle == ANIM_SLIDE;

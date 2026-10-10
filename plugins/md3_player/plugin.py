@@ -3,7 +3,7 @@ __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
 __version__ = "1.0.0"
-__build__ = 55
+__build__ = 56
 __icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"
@@ -123,6 +123,7 @@ class Md3PlayerPlugin(BasePlugin):
                 if ctx is not None:
                     prefs = ctx.getSharedPreferences("md3_player_prefs", 0)
                     prefs.edit() \
+                        .remove("anim_style") \
                         .putBoolean("mini_player_dialogs", mini_dialogs) \
                         .putBoolean("context_bar_enabled", context_bar) \
                         .putString("color_source", color_source) \
@@ -163,6 +164,10 @@ class Md3PlayerPlugin(BasePlugin):
             self.log(f"[MD3Player] Apply settings error: {e}\n{traceback.format_exc()}")
 
     def on_setting_change(self, *args):
+        try:
+            self.log(f"[MD3Player] on_setting_change triggered with args: {args}")
+        except Exception:
+            pass
         self.apply_settings()
         run_on_ui_thread(self.apply_settings, delay=50)
         run_on_ui_thread(self.apply_settings, delay=150)
