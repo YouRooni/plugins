@@ -107,7 +107,7 @@ public class PlayerSpeedSheet extends BottomSheet {
                 PlayerSpeedSheet.this.parentSheet.updateSpeed();
             }
         });
-        content.addView(speedBar, LayoutHelper.createLinear(-1, 56, 0, 16, 0, 0, 12));
+        content.addView(speedBar, LayoutHelper.createLinear(-1, 56, 0, 12, 0, 0, 8));
     }
 
     private void updateSpeedText(float speed) {
@@ -249,11 +249,11 @@ public class PlayerSpeedSheet extends BottomSheet {
         }
 
         private float getMinThumbX(float startX) {
-            return startX + dp(14);
+            return startX + dp(8.5f);
         }
 
         private float getMaxThumbX(float endX) {
-            return endX - dp(14);
+            return endX - dp(8.5f);
         }
 
         private float getXForIndex(int idx, float startX, float endX) {

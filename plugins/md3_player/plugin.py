@@ -3,7 +3,7 @@ __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
 __version__ = "1.0.0"
-__build__ = 63
+__build__ = 64
 __icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"
