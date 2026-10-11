@@ -23,7 +23,7 @@ public final class PlayerConfig {
     private static boolean onlineLyrics = true;
     private static boolean wavySeekBar = true;
     private static boolean lrclibAllowed = true;
-    private static int animStyle = ANIM_MORPH;
+    private static volatile int animStyle = ANIM_MORPH;
     private static boolean seekBarDot = true;
 
     private static boolean loaded = false;
@@ -108,25 +108,21 @@ public final class PlayerConfig {
 
     public static void setAnimStyle(int style) {
         loaded = true;
-        animStyle = style;
+        animStyle = (style == ANIM_SLIDE) ? ANIM_SLIDE : ANIM_MORPH;
         save();
     }
 
     public static boolean isSlideAnimation() {
-        load();
-        try {
-            Context ctx = ApplicationLoader.applicationContext;
-            if (ctx != null) {
-                SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
-                animStyle = readAnimStyle(prefs, animStyle);
-            }
-        } catch (Throwable ignored) {
+        if (!loaded) {
+            load();
         }
         return animStyle == ANIM_SLIDE;
     }
 
     public static int getAnimStyle() {
-        load();
+        if (!loaded) {
+            load();
+        }
         return animStyle;
     }
 
