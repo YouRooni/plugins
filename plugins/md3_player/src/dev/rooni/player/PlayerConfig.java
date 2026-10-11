@@ -120,15 +120,25 @@ public final class PlayerConfig {
     }
 
     public static boolean isSlideAnimation() {
-        if (!loaded) {
-            load();
+        try {
+            Context ctx = ApplicationLoader.applicationContext;
+            if (ctx != null) {
+                SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                animStyle = readAnimStyle(prefs, animStyle);
+            }
+        } catch (Throwable ignored) {
         }
         return animStyle == ANIM_SLIDE;
     }
 
     public static int getAnimStyle() {
-        if (!loaded) {
-            load();
+        try {
+            Context ctx = ApplicationLoader.applicationContext;
+            if (ctx != null) {
+                SharedPreferences prefs = ctx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                animStyle = readAnimStyle(prefs, animStyle);
+            }
+        } catch (Throwable ignored) {
         }
         return animStyle;
     }

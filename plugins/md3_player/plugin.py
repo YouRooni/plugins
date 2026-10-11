@@ -3,7 +3,7 @@ __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
 __version__ = "1.0.0"
-__build__ = 64
+__build__ = 65
 __icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"
@@ -107,6 +107,13 @@ class Md3PlayerPlugin(BasePlugin):
                 except Exception:
                     val = value
 
+            if key == "anim_style":
+                s = str(val).lower() if val is not None else ""
+                val = 1 if ("скольж" in s or "slide" in s or s == "1") else 0
+            elif key == "color_source":
+                s = str(val).lower() if val is not None else ""
+                val = 1 if ("тема" in s or "theme" in s or s == "1") else 0
+
             self.log(f"[MD3Player] Setting changed: {key} = {val}")
             self.set_setting(key, val, reload_settings=True)
             self.apply_settings()
@@ -119,21 +126,16 @@ class Md3PlayerPlugin(BasePlugin):
             context_bar = bool(self.get_setting("context_bar_enabled", True))
 
             raw_color = self.get_setting("color_source", 0)
-            try:
-                color_idx = int(raw_color)
-            except Exception:
-                color_idx = 0
-            color_source = "theme" if color_idx == 1 else "cover"
+            s_color = str(raw_color).lower() if raw_color is not None else ""
+            color_source = "theme" if ("тема" in s_color or "theme" in s_color or s_color == "1") else "cover"
 
             online_lyrics = True
             wavy_seekbar = bool(self.get_setting("wavy_seekbar", True))
             seekbar_dot = bool(self.get_setting("seekbar_dot", True))
 
             raw_anim = self.get_setting("anim_style", 0)
-            try:
-                anim_style = int(raw_anim)
-            except Exception:
-                anim_style = 0
+            s_anim = str(raw_anim).lower() if raw_anim is not None else ""
+            anim_style = 1 if ("скольж" in s_anim or "slide" in s_anim or s_anim == "1") else 0
 
             self.log(f"[MD3Player] Applying settings: anim_style={anim_style}, seekbar_dot={seekbar_dot}, wavy={wavy_seekbar}, color={color_source}")
 

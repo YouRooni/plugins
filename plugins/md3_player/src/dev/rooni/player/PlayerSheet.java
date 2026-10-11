@@ -956,7 +956,16 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
             transitionSource = PlayerHook.findActiveTransitionSource();
         }
         PlayerTransitionSource mini = transitionSource;
-        if (skipMorph || mini == null || !mini.canTransition() || root.getWidth() == 0 || !root.isAttachedToWindow()) {
+        if (skipMorph || mini == null || !mini.canTransition()) {
+            return false;
+        }
+        if (root.getWidth() == 0 || root.getHeight() == 0) {
+            int w = AndroidUtilities.displaySize.x;
+            int h = AndroidUtilities.displaySize.y;
+            root.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY), View.MeasureSpec.makeMeasureSpec(h, View.MeasureSpec.EXACTLY));
+            root.layout(0, 0, w, h);
+        }
+        if (root.getWidth() == 0) {
             return false;
         }
         if (lyricsAnimator != null && lyricsAnimator.isRunning()) {

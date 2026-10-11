@@ -175,6 +175,15 @@ public final class PlayerHook {
         });
     }
 
+    public static void setAnimStyle(Object style) {
+        if (style instanceof Number) {
+            setAnimStyle(((Number) style).intValue());
+        } else if (style != null) {
+            String s = style.toString().toLowerCase();
+            setAnimStyle(("1".equals(s) || s.contains("скольж") || s.contains("slide")) ? PlayerConfig.ANIM_SLIDE : PlayerConfig.ANIM_MORPH);
+        }
+    }
+
     public static void setSeekBarDot(boolean dot) {
         PlayerConfig.setSeekBarDot(dot);
         AndroidUtilities.runOnUIThread(() -> {
