@@ -3,7 +3,7 @@ __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
 __version__ = "1.0.0"
-__build__ = 57
+__build__ = 58
 __icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"
@@ -91,79 +91,50 @@ class Md3PlayerPlugin(BasePlugin):
         except Exception as e:
             self.log(f"Failed to unload Java MD3 Player module: {e}")
 
-    def apply_anim_style(self, anim):
+    def on_setting_changed(self, key, value):
         try:
-            ctx = ApplicationLoader.applicationContext
-            if ctx is not None:
-                prefs = ctx.getSharedPreferences("md3_player_prefs", 0)
-                prefs.edit().remove("anim_style").putInt("anim_style", anim).apply()
-        except Exception:
-            pass
-        if self.dex_class is not None:
-            try:
-                for m in self.dex_class.getMethods():
-                    if m.getName() == "setAnimStyle" and len(m.getParameterTypes()) == 1:
-                        m.invoke(None, anim)
-                        break
-            except Exception as e:
-                self.log(f"[MD3Player] Error invoking setAnimStyle: {e}")
+            if hasattr(value, "intValue"):
+                val = value.intValue()
+            elif hasattr(value, "booleanValue"):
+                val = value.booleanValue()
+            elif isinstance(value, bool):
+                val = value
+            elif str(value).isdigit():
+                val = int(value)
+            else:
+                try:
+                    val = int(value)
+                except Exception:
+                    val = value
 
-    def on_anim_style_change(self, *args):
-        try:
-            val = args[0] if args else self.get_setting("anim_style", 0)
-            anim = 1 if (val == 1 or val == "1" or (isinstance(val, str) and ("скольж" in val.lower() or "slide" in val.lower()))) else 0
-            self.set_setting("anim_style", anim)
-            self.apply_anim_style(anim)
-        except Exception as e:
-            self.log(f"[MD3Player] on_anim_style_change error: {e}")
-
-    def on_color_source_change(self, *args):
-        try:
-            val = args[0] if args else self.get_setting("color_source", 0)
-            idx = 1 if (val == 1 or val == "1" or (isinstance(val, str) and ("тема" in val.lower() or "theme" in val.lower()))) else 0
-            self.set_setting("color_source", idx)
+            self.log(f"[MD3Player] Setting changed: {key} = {val}")
+            self.set_setting(key, val, reload_settings=True)
             self.apply_settings()
         except Exception as e:
-            self.log(f"[MD3Player] on_color_source_change error: {e}")
-
-    def on_switch_change(self, key):
-        def handler(*args):
-            try:
-                if args:
-                    val = bool(args[0])
-                    self.set_setting(key, val)
-                self.apply_settings()
-            except Exception as e:
-                self.log(f"[MD3Player] on_switch_change error for {key}: {e}")
-        return handler
+            self.log(f"[MD3Player] Setting change error for {key}: {e}")
 
     def apply_settings(self):
         try:
             mini_dialogs = bool(self.get_setting("mini_player_dialogs", True))
             context_bar = bool(self.get_setting("context_bar_enabled", True))
+
             raw_color = self.get_setting("color_source", 0)
-            color_source = "theme" if (raw_color == 1 or raw_color == "1" or (isinstance(raw_color, str) and "тема" in raw_color.lower())) else "cover"
+            try:
+                color_idx = int(raw_color)
+            except Exception:
+                color_idx = 0
+            color_source = "theme" if color_idx == 1 else "cover"
+
             online_lyrics = True
             wavy_seekbar = bool(self.get_setting("wavy_seekbar", True))
             seekbar_dot = bool(self.get_setting("seekbar_dot", True))
 
             raw_anim = self.get_setting("anim_style", 0)
-            if isinstance(raw_anim, int):
-                anim_style = raw_anim
-            elif isinstance(raw_anim, str):
-                if raw_anim.isdigit():
-                    anim_style = int(raw_anim)
-                elif "скольж" in raw_anim.lower() or "slide" in raw_anim.lower():
-                    anim_style = 1
-                else:
-                    anim_style = 0
-            else:
-                try:
-                    anim_style = int(raw_anim)
-                except Exception:
-                    anim_style = 0
+            try:
+                anim_style = int(raw_anim)
+            except Exception:
+                anim_style = 0
 
-            self.apply_anim_style(anim_style)
             self.log(f"[MD3Player] Applying settings: anim_style={anim_style}, seekbar_dot={seekbar_dot}, wavy={wavy_seekbar}, color={color_source}")
 
             try:
@@ -220,7 +191,7 @@ class Md3PlayerPlugin(BasePlugin):
                 subtext="Кастомизировать плеер на главной странице",
                 default=True,
                 icon="player",
-                on_change=self.on_switch_change("mini_player_dialogs"),
+                on_change=lambda v: self.on_setting_changed("mini_player_dialogs", v),
             ),
             Switch(
                 key="context_bar_enabled",
@@ -228,7 +199,7 @@ class Md3PlayerPlugin(BasePlugin):
                 subtext="Компактный плеер сверху в переписке",
                 default=True,
                 icon="msg_message",
-                on_change=self.on_switch_change("context_bar_enabled"),
+                on_change=lambda v: self.on_setting_changed("context_bar_enabled", v),
             ),
             Header(text="Стиль"),
             Selector(
@@ -240,7 +211,7 @@ class Md3PlayerPlugin(BasePlugin):
                     "Тема Telegram",
                 ],
                 icon="msg_palette",
-                on_change=self.on_color_source_change,
+                on_change=lambda v: self.on_setting_changed("color_source", v),
             ),
             Switch(
                 key="wavy_seekbar",
@@ -248,7 +219,7 @@ class Md3PlayerPlugin(BasePlugin):
                 subtext="Анимация волны на прогрессе",
                 default=True,
                 icon="msg_autodelete_badge2",
-                on_change=self.on_switch_change("wavy_seekbar"),
+                on_change=lambda v: self.on_setting_changed("wavy_seekbar", v),
             ),
             Switch(
                 key="seekbar_dot",
@@ -256,7 +227,7 @@ class Md3PlayerPlugin(BasePlugin):
                 subtext="Круглый маркер на шкале трека",
                 default=True,
                 icon="msg_blur_radial",
-                on_change=self.on_switch_change("seekbar_dot"),
+                on_change=lambda v: self.on_setting_changed("seekbar_dot", v),
             ),
             Selector(
                 key="anim_style",
@@ -267,7 +238,7 @@ class Md3PlayerPlugin(BasePlugin):
                     "Скольжение",
                 ],
                 icon="msg_customize",
-                on_change=self.on_anim_style_change,
+                on_change=lambda v: self.on_setting_changed("anim_style", v),
             ),
             Header(text="О плагине"),
             Text(

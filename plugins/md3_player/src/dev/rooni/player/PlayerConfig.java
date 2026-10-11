@@ -45,6 +45,10 @@ public final class PlayerConfig {
                 }
             } catch (Throwable ignored) {
             }
+            try {
+                return prefs.getBoolean("anim_style", false) ? ANIM_SLIDE : ANIM_MORPH;
+            } catch (Throwable ignored) {
+            }
         }
         return fallback;
     }
