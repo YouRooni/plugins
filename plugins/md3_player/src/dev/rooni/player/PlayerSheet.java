@@ -506,7 +506,7 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         group.setOrientation(LinearLayout.HORIZONTAL);
         speedButton = new MorphButton(context, PlayerIcon.stroke(PlayerIcon.SPEED, 20));
         speedButton.setRadius(dp(26), dp(8), false);
-        speedButton.setOnClickListener(v -> cycleSpeed());
+        speedButton.setOnClickListener(v -> openSpeedSheet());
         group.addView(speedButton, LayoutHelper.createLinear(0, 52, 1f));
         lyricsButton = new MorphButton(context, PlayerIcon.stroke(PlayerIcon.LYRICS, 20));
         lyricsButton.setText(PlayerStrings.get("lyrics"));
@@ -1347,11 +1347,11 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         controls.repeat.setContentDescription(getString(mode == 2 ? R.string.AccDescrRepeatOne : mode == 1 ? R.string.AccDescrRepeatList : R.string.AccDescrRepeatOff));
     }
 
-    private void updateSpeed() {
+    public void updateSpeed() {
         updateSpeed(true);
     }
 
-    private void updateSpeed(boolean animated) {
+    public void updateSpeed(boolean animated) {
         float speed = MediaController.getInstance().getPlaybackSpeed(true);
         DecimalFormat format = new DecimalFormat("0.##", DecimalFormatSymbols.getInstance(currentLocale()));
         String label = format.format(speed) + "×";
@@ -1364,6 +1364,10 @@ public class PlayerSheet extends BottomSheet implements NotificationCenter.Notif
         } else {
             speedButton.setRadius(dp(26), dp(8), animated);
         }
+    }
+
+    private void openSpeedSheet() {
+        new PlayerSpeedSheet(getContext(), colors, resourcesProvider, this).show();
     }
 
     private static Locale currentLocale() {

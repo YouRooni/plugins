@@ -37,6 +37,8 @@ public final class PlayerStrings {
                 return ru ? "Перемешать" : "Shuffle";
             case "speed":
                 return ru ? "Скорость воспроизведения" : "Playback speed";
+            case "pitch":
+                return ru ? "Питч" : "Pitch";
             case "seek":
                 return ru ? "Перемотка" : "Seek";
             case "open":

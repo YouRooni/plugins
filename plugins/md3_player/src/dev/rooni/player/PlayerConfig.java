@@ -25,6 +25,7 @@ public final class PlayerConfig {
     private static boolean lrclibAllowed = true;
     private static volatile int animStyle = ANIM_MORPH;
     private static boolean seekBarDot = true;
+    private static boolean pitchEnabled = false;
 
     private static boolean loaded = false;
 
@@ -69,6 +70,7 @@ public final class PlayerConfig {
                 lrclibAllowed = prefs.getBoolean("lrclib_allowed", true);
                 animStyle = readAnimStyle(prefs, ANIM_MORPH);
                 seekBarDot = prefs.getBoolean("seekbar_dot", true);
+                pitchEnabled = prefs.getBoolean("pitch_enabled", false);
                 loaded = true;
             }
         } catch (Throwable ignored) {
@@ -92,6 +94,7 @@ public final class PlayerConfig {
                         .putBoolean("lrclib_allowed", lrclibAllowed)
                         .putInt("anim_style", animStyle)
                         .putBoolean("seekbar_dot", seekBarDot)
+                        .putBoolean("pitch_enabled", pitchEnabled)
                         .apply();
             }
         } catch (Throwable ignored) {
@@ -230,6 +233,19 @@ public final class PlayerConfig {
     public static void setSeekBarDot(boolean dot) {
         loaded = true;
         seekBarDot = dot;
+        save();
+    }
+
+    public static boolean isPitchEnabled() {
+        if (!loaded) {
+            load();
+        }
+        return pitchEnabled;
+    }
+
+    public static void setPitchEnabled(boolean enabled) {
+        loaded = true;
+        pitchEnabled = enabled;
         save();
     }
 }

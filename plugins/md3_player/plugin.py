@@ -2,8 +2,8 @@ __id__ = "md3_player"
 __name__ = "Material Player"
 __description__ = "Стилизация тг плеера в Material Expressive стиль"
 __author__ = "@RnPlugins"
-__version__ = "1.0.0"
-__build__ = 58
+__version__ = "1.0.2"
+__build__ = 61
 __icon__ = "RnDev/30"
 __app_version__ = ">=12.10.1"
 __sdk_version__ = ">=1.4.3.3"

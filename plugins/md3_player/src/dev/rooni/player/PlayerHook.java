@@ -26,6 +26,7 @@ import org.telegram.ui.DialogsActivity;
 import org.telegram.ui.LaunchActivity;
 
 import java.lang.ref.WeakReference;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -64,6 +65,7 @@ public final class PlayerHook {
                 if (Math.abs(speed - 1f) > 0.001f) {
                     mc.setPlaybackSpeed(true, speed);
                 }
+                applyPlaybackParameters();
             }
         } catch (Throwable ignored) {
         }
@@ -93,6 +95,7 @@ public final class PlayerHook {
         hookPlayerAlert();
         hookFragmentContextView();
         hookNavigationLayout();
+        hookVideoPlayerSpeed();
 
         for (int a = 0; a < UserConfig.MAX_ACCOUNT_COUNT; a++) {
             NotificationCenter nc = NotificationCenter.getInstance(a);
@@ -413,6 +416,94 @@ public final class PlayerHook {
             }));
         } catch (Throwable t) {
 
+        }
+    }
+
+    private static Object createPlaybackParameters(float speed, float pitch) {
+        try {
+            Class<?> clazz = Class.forName("androidx.media3.common.PlaybackParameters");
+            Constructor<?> ctor = clazz.getConstructor(float.class, float.class);
+            return ctor.newInstance(speed, pitch);
+        } catch (Throwable e) {
+            try {
+                Class<?> clazz = Class.forName("com.google.android.exoplayer2.PlaybackParameters");
+                Constructor<?> ctor = clazz.getConstructor(float.class, float.class);
+                return ctor.newInstance(speed, pitch);
+            } catch (Throwable ignored) {
+            }
+        }
+        return null;
+    }
+
+    public static void applyPlaybackParameters() {
+        try {
+            MediaController mc = MediaController.getInstance();
+            MessageObject mo = mc.getPlayingMessageObject();
+            if (mo == null || !mo.isMusic()) {
+                return;
+            }
+            float speed = mc.getPlaybackSpeed(true);
+            float pitch = PlayerConfig.isPitchEnabled() ? speed : (speed > 1.0f ? 0.98f : 1.0f);
+
+            Field audioPlayerField = MediaController.class.getDeclaredField("audioPlayer");
+            audioPlayerField.setAccessible(true);
+            Object videoPlayer = audioPlayerField.get(mc);
+            if (videoPlayer == null) {
+                return;
+            }
+            Field playerField = videoPlayer.getClass().getDeclaredField("player");
+            playerField.setAccessible(true);
+            Object exoPlayer = playerField.get(videoPlayer);
+            if (exoPlayer == null) {
+                return;
+            }
+
+            Object params = createPlaybackParameters(speed, pitch);
+            if (params != null) {
+                for (Method m : exoPlayer.getClass().getMethods()) {
+                    if ("setPlaybackParameters".equals(m.getName()) && m.getParameterTypes().length == 1) {
+                        m.invoke(exoPlayer, params);
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void hookVideoPlayerSpeed() {
+        try {
+            Class<?> vpClass = Class.forName("org.telegram.ui.Components.VideoPlayer");
+            Method speedMethod = vpClass.getDeclaredMethod("setPlaybackSpeed", float.class);
+            unhooks.add(XposedBridge.hookMethod(speedMethod, new XC_MethodHook() {
+                @Override
+                public void beforeHookedMethod(MethodHookParam param) {
+                    if (!PlayerConfig.isPitchEnabled()) {
+                        return;
+                    }
+                    try {
+                        Object vp = param.thisObject;
+                        Field playerField = vp.getClass().getDeclaredField("player");
+                        playerField.setAccessible(true);
+                        Object exoPlayer = playerField.get(vp);
+                        if (exoPlayer != null) {
+                            float f = (Float) param.args[0];
+                            Object params = createPlaybackParameters(f, f);
+                            if (params != null) {
+                                for (Method m : exoPlayer.getClass().getMethods()) {
+                                    if ("setPlaybackParameters".equals(m.getName()) && m.getParameterTypes().length == 1) {
+                                        m.invoke(exoPlayer, params);
+                                        param.setResult(null);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }));
+        } catch (Throwable ignored) {
         }
     }
 
