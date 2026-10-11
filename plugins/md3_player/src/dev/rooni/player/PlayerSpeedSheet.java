@@ -79,18 +79,19 @@ public class PlayerSpeedSheet extends BottomSheet {
         row1.setPadding(dp(24), dp(8), dp(24), dp(8));
 
         ImageView speedIcon = new ImageView(context);
-        PlayerIcon icon = PlayerIcon.stroke(PlayerIcon.SPEED, 22);
+        PlayerIcon icon = PlayerIcon.stroke(PlayerIcon.SPEED, 26);
         icon.setColor(colors.primary);
         speedIcon.setImageDrawable(icon);
-        row1.addView(speedIcon, LayoutHelper.createLinear(24, 24, Gravity.CENTER_VERTICAL));
+        row1.addView(speedIcon, LayoutHelper.createLinear(28, 28, Gravity.CENTER_VERTICAL));
 
         float currentSpeed = MediaController.getInstance().getPlaybackSpeed(true);
         speedValueText = new TextView(context);
-        speedValueText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 22);
+        speedValueText.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 24);
         speedValueText.setTypeface(AndroidUtilities.bold());
+        speedValueText.getPaint().setFakeBoldText(true);
         speedValueText.setTextColor(colors.onSurface);
         updateSpeedText(currentSpeed);
-        row1.addView(speedValueText, LayoutHelper.createLinear(-2, -2, Gravity.CENTER_VERTICAL, 10, 0, 0, 0));
+        row1.addView(speedValueText, LayoutHelper.createLinear(-2, -2, Gravity.CENTER_VERTICAL, 12, 0, 0, 0));
 
         View spacer = new View(context);
         row1.addView(spacer, LayoutHelper.createLinear(0, 0, 1f));
@@ -107,7 +108,7 @@ public class PlayerSpeedSheet extends BottomSheet {
                 PlayerSpeedSheet.this.parentSheet.updateSpeed();
             }
         });
-        content.addView(speedBar, LayoutHelper.createLinear(-1, 48, 0, 12, 0, 0, 8));
+        content.addView(speedBar, LayoutHelper.createLinear(-1, 56, 0, 10, 0, 0, 10));
     }
 
     private void updateSpeedText(float speed) {
@@ -145,7 +146,7 @@ public class PlayerSpeedSheet extends BottomSheet {
             textPaint.setTypeface(AndroidUtilities.bold());
 
             checkPaint.setStyle(Paint.Style.STROKE);
-            checkPaint.setStrokeWidth(dp(2));
+            checkPaint.setStrokeWidth(dp(1.35f));
             checkPaint.setStrokeCap(Paint.Cap.ROUND);
             checkPaint.setStrokeJoin(Paint.Join.ROUND);
 
@@ -277,7 +278,7 @@ public class PlayerSpeedSheet extends BottomSheet {
             int initialIndex = Math.round((initialSpeed - MIN_SPEED) / STEP_SIZE);
             this.stepIndex = Math.max(0, Math.min(STEPS, initialIndex));
 
-            trackPaint.setColor(ColorUtils.setAlphaComponent(colors.surfaceHigh, 0xEE));
+            trackPaint.setColor(ColorUtils.blendARGB(colors.surfaceHigh, colors.onSurface, 0.12f));
             activeTrackPaint.setColor(colors.primary);
             thumbPaint.setColor(colors.primary);
         }
@@ -298,31 +299,46 @@ public class PlayerSpeedSheet extends BottomSheet {
                 thumbX = getXForIndex(stepIndex, startX, endX);
             }
 
-            canvas.drawRoundRect(startX, cy - dp(3), endX, cy + dp(3), dp(3), dp(3), trackPaint);
+            float trackH = dp(16);
+            float trackR = trackH / 2f;
+            float gap = dp(5);
 
-            float activeRight = Math.max(startX, Math.min(endX, thumbX));
-            canvas.drawRoundRect(startX, cy - dp(3), activeRight, cy + dp(3), dp(3), dp(3), activeTrackPaint);
+            float activeRight = Math.max(startX, thumbX - gap);
+            float inactiveLeft = Math.min(endX, thumbX + gap);
+
+            if (activeRight > startX + dp(2)) {
+                canvas.drawRoundRect(startX, cy - trackR, activeRight, cy + trackR, trackR, trackR, activeTrackPaint);
+            }
+
+            if (inactiveLeft < endX - dp(2)) {
+                canvas.drawRoundRect(inactiveLeft, cy - trackR, endX, cy + trackR, trackR, trackR, trackPaint);
+            }
 
             for (int i = 0; i <= STEPS; i++) {
                 float tx = getXForIndex(i, startX, endX);
+                if (Math.abs(tx - thumbX) < gap + dp(1)) {
+                    continue;
+                }
                 boolean isDefaultOne = (i == 5);
                 float radius;
                 int dotColor;
 
                 if (isDefaultOne) {
-                    radius = dp(3.5f);
-                    dotColor = (tx <= thumbX + dp(1)) ? colors.surfaceLow : colors.primary;
+                    radius = dp(3f);
+                    dotColor = (tx < thumbX) ? colors.surfaceLow : colors.onSurface;
                 } else {
-                    radius = dp(2f);
-                    dotColor = (tx <= thumbX + dp(1)) ? colors.surfaceLow : ColorUtils.setAlphaComponent(colors.onSurfaceVariant, 0x55);
+                    radius = dp(1.8f);
+                    dotColor = (tx < thumbX) ? colors.surfaceLow : ColorUtils.setAlphaComponent(colors.onSurfaceVariant, 0x66);
                 }
 
                 tickPaint.setColor(dotColor);
                 canvas.drawCircle(tx, cy, radius, tickPaint);
             }
 
-            float currentRadius = dp(10) + dp(3) * thumbRadiusProgress;
-            canvas.drawCircle(thumbX, cy, currentRadius, thumbPaint);
+            float thumbW = dp(4.5f) + dp(1.5f) * thumbRadiusProgress;
+            float thumbH = dp(38) + dp(6) * thumbRadiusProgress;
+            float thumbR = thumbW / 2f;
+            canvas.drawRoundRect(thumbX - thumbW / 2f, cy - thumbH / 2f, thumbX + thumbW / 2f, cy + thumbH / 2f, thumbR, thumbR, thumbPaint);
         }
 
         @Override

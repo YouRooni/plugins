@@ -25,7 +25,7 @@ public final class PlayerConfig {
     private static boolean lrclibAllowed = true;
     private static volatile int animStyle = ANIM_MORPH;
     private static boolean seekBarDot = true;
-    private static boolean pitchEnabled = false;
+    private static boolean pitchEnabled = true;
 
     private static boolean loaded = false;
 
@@ -70,7 +70,7 @@ public final class PlayerConfig {
                 lrclibAllowed = prefs.getBoolean("lrclib_allowed", true);
                 animStyle = readAnimStyle(prefs, ANIM_MORPH);
                 seekBarDot = prefs.getBoolean("seekbar_dot", true);
-                pitchEnabled = prefs.getBoolean("pitch_enabled", false);
+                pitchEnabled = prefs.getBoolean("pitch_enabled", true);
                 loaded = true;
             }
         } catch (Throwable ignored) {
