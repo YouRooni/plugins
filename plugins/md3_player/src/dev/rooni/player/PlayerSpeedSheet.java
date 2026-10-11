@@ -23,7 +23,6 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import androidx.core.graphics.ColorUtils;
-import androidx.core.graphics.PathParser;
 
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.LocaleController;
@@ -108,7 +107,7 @@ public class PlayerSpeedSheet extends BottomSheet {
                 PlayerSpeedSheet.this.parentSheet.updateSpeed();
             }
         });
-        content.addView(speedBar, LayoutHelper.createLinear(-1, 56, 0, 10, 0, 0, 10));
+        content.addView(speedBar, LayoutHelper.createLinear(-1, 56, 0, 16, 0, 0, 12));
     }
 
     private void updateSpeedText(float speed) {
@@ -127,8 +126,6 @@ public class PlayerSpeedSheet extends BottomSheet {
         private final Paint bgPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint strokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final TextPaint textPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint checkPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Path checkPath;
         private final RectF bounds = new RectF();
         private final String text;
 
@@ -144,18 +141,6 @@ public class PlayerSpeedSheet extends BottomSheet {
 
             textPaint.setTextSize(dp(14));
             textPaint.setTypeface(AndroidUtilities.bold());
-
-            checkPaint.setStyle(Paint.Style.STROKE);
-            checkPaint.setStrokeWidth(dp(1.35f));
-            checkPaint.setStrokeCap(Paint.Cap.ROUND);
-            checkPaint.setStrokeJoin(Paint.Join.ROUND);
-
-            Path parsed = null;
-            try {
-                parsed = PathParser.createPathFromPathData(PlayerIcon.CHECK);
-            } catch (Throwable ignored) {
-            }
-            checkPath = parsed != null ? parsed : new Path();
 
             setOnClickListener(v -> {
                 active = !active;
@@ -186,10 +171,8 @@ public class PlayerSpeedSheet extends BottomSheet {
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
             float textW = textPaint.measureText(text);
-            int checkW = dp(18);
-            int gap = dp(6);
-            int basePadding = dp(14);
-            int w = (int) (basePadding * 2 + textW + (checkW + gap) * progress);
+            int basePadding = dp(16);
+            int w = (int) (basePadding * 2 + textW);
             int h = dp(36);
             setMeasuredDimension(Math.max(w, dp(64)), h);
         }
@@ -221,25 +204,7 @@ public class PlayerSpeedSheet extends BottomSheet {
             textPaint.setColor(curText);
 
             float textW = textPaint.measureText(text);
-            float checkW = dp(18);
-            float gap = dp(6);
-            float totalContentW = textW + (checkW + gap) * progress;
-            float startX = (w - totalContentW) / 2f;
-
-            if (progress > 0.01f) {
-                canvas.save();
-                float checkLeft = startX;
-                float checkTop = (h - checkW) / 2f;
-                canvas.translate(checkLeft, checkTop);
-                float s = checkW / 24f;
-                canvas.scale(s, s);
-                checkPaint.setColor(curText);
-                checkPaint.setAlpha((int) (255 * progress));
-                canvas.drawPath(checkPath, checkPaint);
-                canvas.restore();
-            }
-
-            float textX = startX + (checkW + gap) * progress;
+            float textX = (w - textW) / 2f;
             Paint.FontMetrics fm = textPaint.getFontMetrics();
             float textY = (h - fm.bottom - fm.top) / 2f;
             canvas.drawText(text, textX, textY, textPaint);
@@ -283,8 +248,18 @@ public class PlayerSpeedSheet extends BottomSheet {
             thumbPaint.setColor(colors.primary);
         }
 
+        private float getMinThumbX(float startX) {
+            return startX + dp(14);
+        }
+
+        private float getMaxThumbX(float endX) {
+            return endX - dp(14);
+        }
+
         private float getXForIndex(int idx, float startX, float endX) {
-            return startX + (endX - startX) * (idx / (float) STEPS);
+            float min = getMinThumbX(startX);
+            float max = getMaxThumbX(endX);
+            return min + (max - min) * (idx / (float) STEPS);
         }
 
         @Override
@@ -377,10 +352,12 @@ public class PlayerSpeedSheet extends BottomSheet {
         }
 
         private void updatePosition(float touchX, float startX, float endX) {
-            float clampedX = Math.max(startX, Math.min(endX, touchX));
+            float min = getMinThumbX(startX);
+            float max = getMaxThumbX(endX);
+            float clampedX = Math.max(min, Math.min(max, touchX));
             thumbX = clampedX;
 
-            float pct = (clampedX - startX) / (endX - startX);
+            float pct = (clampedX - min) / (max - min);
             int newIndex = Math.max(0, Math.min(STEPS, Math.round(pct * STEPS)));
 
             if (newIndex != stepIndex) {
